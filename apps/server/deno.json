@@ -1,0 +1,12 @@
+{
+  "license": "Apache-2.0",
+  "description": "prex server: session broker, HTTP/WebSocket API, MCP interface and activity store.",
+  "tasks": {
+    "dev": "deno run --watch --allow-net --allow-env --allow-read src/main.ts"
+  },
+  "imports": {
+    "@prex/protocol": "jsr:@prex/protocol@^0.1.0",
+    "hono": "jsr:@hono/hono@^4.6.14",
+    "zod": "npm:zod@^3.23.8"
+  }
+}

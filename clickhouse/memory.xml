@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+  Cache sizing for a memory-capped container.
+
+  ClickHouse derives max_server_memory_usage from the cgroup limit, but it
+  does NOT derive the cache sizes, those stay at their absolute defaults.
+
+    mark_cache_size          5 GiB
+    uncompressed_cache_size  8 GiB
+    primary_index_cache_size 5 GiB
+    index_mark_cache_size    5 GiB
+
+  They are lazily filled, so nothing had actually grown into them and a
+  cache does not proactively evict to make room for a merge or a query. The values
+  below leave them useful while keeping the ceiling well under the container.
+
+  uncompressed_cache is set to 0 deliberately: use_uncompressed_cache defaults to
+  0, so it never fills and its 8 GiB allowance was pure exposure.
+-->
+<clickhouse>
+    <mark_cache_size>268435456</mark_cache_size>
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+    <index_mark_cache_size>134217728</index_mark_cache_size>
+    <primary_index_cache_size>134217728</primary_index_cache_size>
+</clickhouse>

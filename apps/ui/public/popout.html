@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>prex panel</title>
+    <!--
+      The page dockview opens for a popped-out group. It deliberately renders
+      nothing of its own.
+
+      Why it exists at all: dockview's default `popoutUrl` is "/popout.html",
+      and this app is served by nginx with `try_files $uri /index.html`. Without
+      this file that path fell through to the SPA entry point, so every popout
+      window booted a second complete copy of the debug UI and dockview then
+      rendered the popped-out group on top of it.
+
+      Why it fetches its own styles: dockview copies the opener's stylesheets in
+      on the window's `load` event. Relying on that alone left the popout
+      unstyled in practice, and it is not worth diagnosing someone else's race
+      when the page can just ask for what it needs. Same origin, opened by us,
+      so `window.opener` is reachable; duplicate links are a cache hit and the
+      same rules either way. Wrapped in try/catch because a blocked or absent
+      opener must leave a usable window rather than an exception.
+    -->
+    <style>
+      html, body { height: 100%; margin: 0; overflow: hidden; background: #0a0a0a; }
+    </style>
+    <script>
+      (function () {
+        try {
+          var opener = window.opener;
+          if (!opener || !opener.document) return;
+          var links = opener.document.querySelectorAll('link[rel="stylesheet"]');
+          for (var i = 0; i < links.length; i++) {
+            var copy = document.createElement("link");
+            copy.rel = "stylesheet";
+            copy.href = links[i].href;
+            document.head.appendChild(copy);
+          }
+          // Vite injects styles as inline <style> during `npm run dev`, where
+          // there are no stylesheet links to copy at all.
+          var inline = opener.document.querySelectorAll("style");
+          for (var j = 0; j < inline.length; j++) {
+            var s = document.createElement("style");
+            s.textContent = inline[j].textContent;
+            document.head.appendChild(s);
+          }
+        } catch (err) {
+          console.warn("[prex] popout could not copy styles from the opener:", err);
+        }
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

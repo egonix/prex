@@ -1,0 +1,9 @@
+.git/
+.env
+.env.*
+*.log
+dump.md
+stack.md
+
+# bind-mounted at runtime (compose.yaml), never needed in the image
+/static/

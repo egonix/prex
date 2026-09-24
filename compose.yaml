@@ -1,0 +1,71 @@
+services:
+  prex:
+    build: .
+    environment:
+      - PORT=8000
+      - PREX_ADMIN_KEY=${PREX_ADMIN_KEY:?set PREX_ADMIN_KEY in .env}
+      - PREX_MCP=false # opt-in
+      # Activity store, opt-in the same way PREX_MCP is.
+      # UNSET means no store: prex runs as the two-container
+      # stack, capturing/broadcasting/firing triggers exactly,
+      # just persisting nothing. Enable by setting these in
+      # .env together with COMPOSE_PROFILES=store (see .env.example).
+      # Note `${VAR-}` (single dash) rather than `${VAR:-x}`: unset must stay
+      # empty, because empty is the "disabled" signal prex reads.
+      - PREX_CLICKHOUSE_URL=${PREX_CLICKHOUSE_URL-}
+      - PREX_CLICKHOUSE_DB=${PREX_CLICKHOUSE_DB:-prex}
+      - PREX_CLICKHOUSE_USER=${PREX_CLICKHOUSE_USER:-prex}
+      - PREX_CLICKHOUSE_PASSWORD=${PREX_CLICKHOUSE_PASSWORD-}
+      # Store tuning. All optional, unset means the documented default, and a
+      # value that cannot be used warns at boot and falls back rather than
+      # refusing to start.
+      - PREX_FLUSH_INTERVAL_MS=${PREX_FLUSH_INTERVAL_MS-}
+      - PREX_INGEST_QUEUE_MAX=${PREX_INGEST_QUEUE_MAX-}
+      - PREX_SQL_MAX_MEMORY_MB=${PREX_SQL_MAX_MEMORY_MB-}
+      - PREX_SQL_TIMEOUT_SECONDS=${PREX_SQL_TIMEOUT_SECONDS-}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      - ./static:/static
+  prex-clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    restart: unless-stopped
+    # Only started when the `store` profile is active (COMPOSE_PROFILES=store
+    # in .env, or `docker compose --profile store up -d`). Without it,
+    # `docker compose up -d` brings up prex + prex-dbg-ui and nothing else.
+    profiles: ["store"]
+    environment:
+      - CLICKHOUSE_DB=${PREX_CLICKHOUSE_DB:-prex}
+      # A dedicated user, created on first init of the data volume. Without
+      # these the image gen a random password for `default`, which the
+      # HTTP interface then rejects
+      - CLICKHOUSE_USER=${PREX_CLICKHOUSE_USER:-prex}
+      - CLICKHOUSE_PASSWORD=${PREX_CLICKHOUSE_PASSWORD-}
+    volumes:
+      - prex-clickhouse-data:/var/lib/clickhouse
+      # Cache ceilings. derives max_server_memory_usage from the cgroup limit
+      # but NOT the cache sizes, which stay at their (much larger) defaults
+      - ./clickhouse/memory.xml:/etc/clickhouse-server/config.d/memory.xml:ro
+    # Single-node ClickHouse assumes a bigger box than a personal stack, and merge
+    # memory rather than query memory is what this workload is.
+    mem_limit: 8g
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  prex-dbg-ui:
+    build: ./apps/ui
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+volumes:
+  prex-clickhouse-data:

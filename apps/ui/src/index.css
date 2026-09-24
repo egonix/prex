@@ -1,0 +1,94 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+/* `dockview-core` ships no CSS at all, only JS, types and a LICENCE. The
+   stylesheet lives in the sibling `dockview` package, which is a devDependency
+   here purely for this file; no JavaScript is ever imported from it. The
+   package's own `exports` map exposes `./dist/styles/*`, so this path is a
+   supported entry point rather than a reach into its internals. */
+@import "dockview/dist/styles/dockview.css";
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /* `clip`, not `hidden`. They look identical, but `overflow: hidden` still
+     creates a SCROLL CONTAINER, it only stops the user scrolling, while script
+     can scroll it freely. `overflow: clip` creates no scroll container at all,
+     so there is nothing here for anything to scroll. */
+  overflow: clip;
+}
+
+/* The shell is pinned to the viewport and clipped rather than hidden.
+   `scrollIntoView` scrolls EVERY scrollable ancestor, not just the nearest one,
+   and ConsolePanel calls it on every new entry to follow the tail
+   (`bottomRef.current?.scrollIntoView({ block: "end" })`). With `overflow:
+   hidden` the shell counted as one of those ancestors, so following the console
+   dragged the whole shell down, clipped, so it could not be scrolled back, and
+   the browser then restored that offset on the next refresh. That is why it
+   showed up on a clean load and cleared as soon as anything re-laid-out.
+
+   `overflow: clip` creates no scroll container, so the shell is not a candidate
+   and the scroll lands where it was meant to: the console's own scroller. All
+   real scrolling belongs to a panel's own content. */
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: clip;
+}
+
+body {
+  @apply bg-neutral-950 text-neutral-200;
+  font: 14px/1.4 ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+/* Reconciles dockview's built-in dark theme with this app's palette. Variables
+   only, the stylesheet is never forked or edited, so a version bump brings
+   structural fixes for free and only these ~20 lines are ours.
+
+   Values are the Tailwind colours the rest of the UI already uses, so the dock
+   reads as part of the tool rather than as an embedded widget:
+   neutral-950 #0a0a0a (panel surface), neutral-900 #171717 (tab strips, matching
+   SessionList/SessionInfoBar and the SidePanel this replaced), neutral-800 #262626 (borders), and
+   violet for the active accent, exactly as the old SidePanel's active tab did. */
+.dockview-theme-dark {
+  /* Surfaces */
+  --dv-group-view-background-color: #0a0a0a;
+  --dv-tabs-and-actions-container-background-color: #171717;
+  --dv-activegroup-visiblepanel-tab-background-color: #0a0a0a;
+  --dv-activegroup-hiddenpanel-tab-background-color: #171717;
+  --dv-inactivegroup-visiblepanel-tab-background-color: #0a0a0a;
+  --dv-inactivegroup-hiddenpanel-tab-background-color: #171717;
+
+  /* Tab text: the active tab picks up violet-300, which is what the old
+     SidePanel's selected tab used before this feature replaced it. */
+  --dv-activegroup-visiblepanel-tab-color: #c4b5fd;
+  --dv-activegroup-hiddenpanel-tab-color: #737373;
+  --dv-inactivegroup-visiblepanel-tab-color: #a3a3a3;
+  --dv-inactivegroup-hiddenpanel-tab-color: #525252;
+
+  /* Borders and separators */
+  --dv-tab-divider-color: #262626;
+  --dv-separator-border: #262626;
+  --dv-paneview-header-border-color: #262626;
+
+  /* The sash is this feature's replacement for SidePanel's drag handle, which
+     was bg-neutral-800 at rest and violet on hover, same convention, so a
+     resize boundary looks identical to the border it stands in for. */
+  --dv-sash-color: #262626;
+  --dv-active-sash-color: #6d28d9;
+
+  /* Drag feedback */
+  --dv-drag-over-background-color: rgba(139, 92, 246, 0.25);
+  --dv-edge-dock-indicator-color: #8b5cf6;
+  --dv-paneview-active-outline-color: #8b5cf6;
+  --dv-icon-hover-background-color: rgba(64, 64, 64, 0.6);
+
+  /* Denser than dockview's 35px/13px default, to match a UI whose own tab
+     labels are 10px and whose bars are py-1.5. */
+  --dv-tabs-and-actions-container-height: 28px;
+  --dv-tabs-and-actions-container-font-size: 11px;
+}

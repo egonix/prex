@@ -1,0 +1,16 @@
+{
+  "license": "Apache-2.0",
+  "description": "prexy: the in-page agent prex injects like capture hooks, eval and module loading.",
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "deno.ns", "esnext"]
+  },
+  "tasks": {
+    "build": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net build.ts",
+    "bookmarklet": "deno run --allow-read --allow-run --allow-env --allow-net make-bookmarklet.ts",
+    "bookmarklet:raw": "deno run --allow-read --allow-run --allow-env --allow-net make-bookmarklet.ts --raw"
+  },
+  "imports": {
+    "esbuild": "npm:esbuild@^0.24.0",
+    "zod": "npm:zod@^3.23.8"
+  }
+}
