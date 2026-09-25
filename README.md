@@ -1,4 +1,4 @@
-# prex 
+# prex
 
 A reverse tunnel into a live browser tab. `prex` is the server; `prexy` is the tiny
 agent a bookmarklet loads into a target page. Once `prexy` is running
@@ -149,6 +149,20 @@ served live from disk.
 
 
 
+### Game modules
+
+`--game <name>` makes the agent load `/prexy/games/<name>.js`. The server looks in two places,
+in order:
+
+1. **Built into the image**: `prexy/games/*.ts`, bundled by `deno task build`. prex ships the
+   generic ones here (`default`, `minimal`).
+2. **Mounted**: `static/games/<name>.js`, served live from disk. A module written for one
+   particular site belongs here, built from wherever its source lives, so it needs no rebuild
+   of prex. A `window.__prexy.reload()` in the tab picks up a new build.
+
+A module for `<name>` should expose its in-page API as `window.<name>`; that is how prex
+reports it as loaded.
+
 ### (Optional) Debug UI
 
 1. **Unlock sessions** `http://localhost:8081` by default with the `PREX_ADMIN_KEY`
@@ -214,7 +228,7 @@ Inspect it with `window.__prexDetect.stats()`; remove it with `window.__prexDete
 
 It also distils high-volume traffic into per-minute summaries. That matters because a target can
 declare a short retention for its chattiest message type  on one real target that type is ~85% of
-all captured bytes and is kept for **1 hour**, while the summaries describing it are kept for
+all captured bytes and is kept for **48 hours**, while the summaries describing it are kept for
 **30 days**, at a measured ~243x smaller. So the detail expires but its shape does not.
 
 What it emits are ordinary captured events (`finding` and `summary`), so they flow through the
@@ -280,4 +294,4 @@ like a real behavioural change if you do not check.
 - **Will you create a bot/AI to play "browser-game" for me?**
   - No.
 
-*mirror prex-beta-18-ga157eaa: `efc76ba44cd026631e41d5ad16f3224ccbc638211354bb6e9ef88d61ed5f3b01`*
+*mirror prex-beta-20-g776e629 `2d2a1fad9e94a903d56a29ab3114b15b2be15aefaffe719a22450b978541f208`*

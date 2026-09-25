@@ -1,11 +1,13 @@
 import type { Session } from "../../sessions/registry.ts";
 import { sendCommand } from "../../rpc/command.ts";
-const INTROSPECT_SNIPPET = `(() => {
-  const candidates = ["__prexDefault", "vidle", "ihs"];
+function introspectSnippet(game: string): string {
+    return `(() => {
+  const candidates = ["__prexDefault", ${JSON.stringify(game)}];
   const found = candidates.filter((name) => typeof window[name] !== "undefined");
   if ([...document.querySelectorAll("*")].some((el) => el.shadowRoot)) found.push("shadow-dom-host");
   return found;
 })()`;
+}
 export interface IntrospectResult {
     active_globals: string[];
     capture_module_loaded: boolean;
@@ -14,7 +16,7 @@ export async function introspectSession(session: Session): Promise<IntrospectRes
     if (!session.prexy || session.prexy.readyState !== WebSocket.OPEN) {
         return { active_globals: [], capture_module_loaded: false };
     }
-    const result = await sendCommand(session, crypto.randomUUID(), INTROSPECT_SNIPPET);
+    const result = await sendCommand(session, crypto.randomUUID(), introspectSnippet(session.game));
     if (!result.ok || !Array.isArray(result.value)) {
         return { active_globals: [], capture_module_loaded: false };
     }

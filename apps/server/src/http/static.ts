@@ -29,8 +29,13 @@ async function serveStaticDir(req: Request, prefix: string, root: URL): Promise<
     }
 }
 const PREXY_ROOT = new URL("../../static/prexy/", import.meta.url);
-export function serveStaticPrexy(req: Request): Promise<Response | null> {
-    return serveStaticDir(req, "/prexy/", PREXY_ROOT);
+const GAMES_MOUNTED_ROOT = new URL("file:///static/games/");
+export async function serveStaticPrexy(req: Request): Promise<Response | null> {
+    const res = await serveStaticDir(req, "/prexy/", PREXY_ROOT);
+    if (res?.status === 404 && new URL(req.url).pathname.startsWith("/prexy/games/")) {
+        return serveStaticDir(req, "/prexy/games/", GAMES_MOUNTED_ROOT);
+    }
+    return res;
 }
 const MOUNTED_ROOT = new URL("file:///static/");
 export function serveStaticMounted(req: Request): Promise<Response | null> {
