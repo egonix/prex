@@ -39,12 +39,12 @@ const source = `
 const bookmarklet = raw
     ? `javascript:${source}`
     : `javascript:${encodeURIComponent((await esbuild.transform(source, { minify: true, loader: "js" })).code.trim())}`;
-console.log(`token:  ${token}`);
+console.log(`token: ${token}`);
 console.log(`server: ${server}`);
-console.log(`game:   ${game}`);
+console.log(`game:  ${game}`);
 if (moduleUrl)
     console.log(`module: ${moduleUrl}`);
-console.log(`form:   ${raw ? "raw (unminified, not percent-encoded)" : "minified"}`);
+console.log(`form:  ${raw ? "raw (unminified, not percent-encoded)" : "minified"}`);
 console.log();
 console.log(raw ? "Bookmarklet source:" : "Save this as a bookmark's URL (name it anything, e.g. \"prex\"):");
 console.log(bookmarklet);

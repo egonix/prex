@@ -2,7 +2,8 @@ import { insertRows, query, sqlString, storeEnabled } from "./client.ts";
 import type { Session } from "../sessions/registry.ts";
 import { sessionIdOf } from "../sessions/registry.ts";
 import { applyDeclaration, validateDeclaration } from "../sessions/schemas.ts";
-import { setGameRetention } from "./retention.ts";
+import { buildTtlClause, type GameRetention, retentionOf } from "./retention.ts";
+import { GameSchemaDeclarationSchema } from "@prex/protocol";
 let versionCounter = 0;
 function nextVersion(): number {
     versionCounter++;
@@ -153,6 +154,28 @@ export async function loadConfig(sessionId: string): Promise<ConfigRow[]> {
     return await query<ConfigRow>(`SELECT kind, id, body FROM config FINAL
       WHERE session_id = ${sqlString(sessionId)} AND deleted = 0`);
 }
+export async function loadDeclaredRetention(): Promise<Map<string, GameRetention>> {
+    const rows = await query<{
+        body: string;
+    }>(`SELECT body FROM config FINAL WHERE kind = 'declaration' AND deleted = 0 ORDER BY version`);
+    const byGame = new Map<string, GameRetention>();
+    for (const row of rows) {
+        let parsed;
+        try {
+            parsed = GameSchemaDeclarationSchema.safeParse(JSON.parse(row.body));
+        }
+        catch {
+            parsed = null;
+        }
+        const retention = parsed?.success ? retentionOf(parsed.data) : null;
+        if (!parsed?.success || !retention || buildTtlClause(retention.rules, retention.defaultDuration) === null) {
+            console.warn("[prex] skipping a stored declaration whose retention no longer parses");
+            continue;
+        }
+        byGame.set(parsed.data.game, retention);
+    }
+    return byGame;
+}
 export function restoreSessionConfig(session: Session): void {
     if (!storeEnabled())
         return;
@@ -175,12 +198,7 @@ export function restoreSessionConfig(session: Session): void {
                     const result = validateDeclaration(session, parsed, { skipGameCheck: true });
                     if (result.ok && result.declaration) {
                         applyDeclaration(session, result.declaration);
-                        const decl = result.declaration;
-                        const rules = decl.messages
-                            .filter((m) => m.retention)
-                            .map((m) => ({ game: decl.game, kind: m.match.kind, type: m.match.type, duration: m.retention! }));
-                        await setGameRetention(decl.game, rules, decl.defaultRetention).catch(() => { });
-                        console.log(`[prex] restored game-schema for ${decl.game}`);
+                        console.log(`[prex] restored game-schema for ${result.declaration.game}`);
                     }
                     else {
                         console.warn(`[prex] stored declaration no longer valid, ignoring: ${result.error}`);

@@ -6,7 +6,7 @@ import { dispatchTriggers } from "../triggers/dispatch.ts";
 import { applyCapabilityEvent } from "../sessions/capabilities.ts";
 import { applyDeclaration, validateDeclaration } from "../sessions/schemas.ts";
 import { saveConfig } from "../store/config.ts";
-import { setGameRetention } from "../store/retention.ts";
+import { retentionOf, setGameRetention } from "../store/retention.ts";
 import { record } from "../triggers/timing.ts";
 import { enqueue } from "../store/ingest.ts";
 import { closeEpisode, openEpisode, upsertSessionRecord } from "../store/config.ts";
@@ -74,10 +74,7 @@ export function attachPrexySocket(req: Request, token: string): Response {
                         const sessionId = await sessionIdOf(session);
                         if (sessionId)
                             await saveConfig(sessionId, "declaration", "current", decl);
-                        const rules = decl.messages
-                            .filter((m) => m.retention)
-                            .map((m) => ({ game: decl.game, kind: m.match.kind, type: m.match.type, duration: m.retention! }));
-                        await setGameRetention(decl.game, rules, decl.defaultRetention);
+                        await setGameRetention(decl.game, retentionOf(decl));
                         console.log(`[prex] session ${token}: applied game-schema for ${decl.game} (${decl.messages.length} rule(s))`);
                     })().catch((err) => {
                         console.warn(`[prex] session ${token}: declaration accepted but not persisted: ${err}`);

@@ -65,7 +65,7 @@ export interface HttpCaptureEntry extends CaptureLogEntry {
     resBody?: unknown;
     error?: string;
 }
-export function hookFetch(push: (entry: HttpCaptureEntry) => void, opts: {
+export function hookFetch(push: (entry: HttpCaptureEntry | SseCaptureEntry) => void, opts: {
     filter?: (url: string, method: string) => boolean;
 } = {}): void {
     const currentFetch = window.fetch as typeof fetch & {
@@ -95,6 +95,11 @@ export function hookFetch(push: (entry: HttpCaptureEntry) => void, opts: {
             }
             promise
                 .then((res) => {
+                if (isEventStream(res.headers.get("content-type"))) {
+                    wrapped.__prexFetchPush?.({ kind: "http", method, url, status: res.status, reqBody, resBody: EVENT_STREAM_BODY, ts: 0 });
+                    readEventStream(res.clone().body, url, (entry) => wrapped.__prexFetchPush?.(entry));
+                    return;
+                }
                 res
                     .clone()
                     .text()
@@ -240,7 +245,7 @@ export function hookWebSocketFull(push: (entry: WsCaptureEntry) => void, opts: {
     if (!preCoversIncoming)
         window.WebSocket = WrappedWS as unknown as typeof WebSocket;
 }
-export function hookXHR(push: (entry: HttpCaptureEntry) => void, opts: {
+export function hookXHR(push: (entry: HttpCaptureEntry | SseCaptureEntry) => void, opts: {
     filter?: (url: string, method: string) => boolean;
 } = {}): void {
     const Native = window.XMLHttpRequest as typeof XMLHttpRequest & {
@@ -280,8 +285,61 @@ export function hookXHR(push: (entry: HttpCaptureEntry) => void, opts: {
                         meta.reqBody = body;
                     }
                 }
+                let stream: {
+                    feed: (text: string) => void;
+                    events: () => number;
+                } | null = null;
+                let seen = 0;
+                const feedNew = () => {
+                    const text = this.responseText;
+                    stream?.feed(text.slice(seen));
+                    seen = text.length;
+                };
+                this.addEventListener("readystatechange", () => {
+                    try {
+                        if (stream || this.readyState !== this.HEADERS_RECEIVED)
+                            return;
+                        if (this.responseType !== "" && this.responseType !== "text")
+                            return;
+                        if (!isEventStream(this.getResponseHeader("content-type")))
+                            return;
+                        stream = sseFeeder(meta.url, (entry) => Native.__prexXhrPush?.(entry));
+                        Native.__prexXhrPush?.({
+                            kind: "http",
+                            method: meta.method,
+                            url: meta.url,
+                            status: this.status,
+                            reqBody: meta.reqBody,
+                            resBody: EVENT_STREAM_BODY,
+                            ts: 0,
+                        });
+                    }
+                    catch {
+                    }
+                });
+                this.addEventListener("progress", () => {
+                    try {
+                        if (stream)
+                            feedNew();
+                    }
+                    catch {
+                    }
+                });
                 this.addEventListener("loadend", () => {
                     try {
+                        if (stream) {
+                            feedNew();
+                            const aborted = this.status === 0;
+                            Native.__prexXhrPush?.({
+                                kind: "sse",
+                                dir: "sys",
+                                type: aborted ? "error" : "close",
+                                url: meta.url,
+                                payload: aborted ? { events: stream.events(), error: "network error or aborted" } : { events: stream.events() },
+                                ts: 0,
+                            });
+                            return;
+                        }
                         let data: unknown;
                         if (this.responseType === "" || this.responseType === "text") {
                             try {
@@ -383,6 +441,102 @@ export function hookEventSource(push: (entry: SseCaptureEntry) => void): void {
         __prexSsePush: push,
     });
     window.EventSource = WrappedES as unknown as typeof EventSource;
+}
+const EVENT_STREAM_BODY = "[text/event-stream]";
+function isEventStream(contentType: string | null): boolean {
+    return contentType?.split(";")[0].trim().toLowerCase() === "text/event-stream";
+}
+export interface SseEvent {
+    type: string;
+    data: string;
+}
+export function createSseParser(onEvent: (ev: SseEvent) => void): (text: string) => void {
+    let pending = "";
+    let afterCr = false;
+    let type = "";
+    let data: string[] | null = null;
+    const line = (l: string) => {
+        if (l === "") {
+            if (data)
+                onEvent({ type: type || "message", data: data.join("\n") });
+            type = "";
+            data = null;
+            return;
+        }
+        if (l[0] === ":")
+            return;
+        const colon = l.indexOf(":");
+        const field = colon === -1 ? l : l.slice(0, colon);
+        let value = colon === -1 ? "" : l.slice(colon + 1);
+        if (value[0] === " ")
+            value = value.slice(1);
+        if (field === "event")
+            type = value;
+        else if (field === "data")
+            (data ??= []).push(value);
+    };
+    return (text: string) => {
+        if (text === "")
+            return;
+        if (afterCr && text[0] === "\n")
+            text = text.slice(1);
+        afterCr = false;
+        const from = pending.length;
+        pending += text;
+        let start = 0;
+        for (let i = from; i < pending.length; i++) {
+            const c = pending[i];
+            if (c !== "\n" && c !== "\r")
+                continue;
+            line(pending.slice(start, i));
+            if (c === "\r") {
+                if (i + 1 === pending.length)
+                    afterCr = true;
+                else if (pending[i + 1] === "\n")
+                    i++;
+            }
+            start = i + 1;
+        }
+        pending = pending.slice(start);
+    };
+}
+function sseFeeder(url: string, push: (entry: SseCaptureEntry) => void): {
+    feed: (text: string) => void;
+    events: () => number;
+} {
+    let events = 0;
+    const feed = createSseParser((ev) => {
+        events++;
+        let payload: unknown;
+        try {
+            payload = JSON.parse(ev.data);
+        }
+        catch {
+            payload = ev.data;
+        }
+        push({ kind: "sse", dir: "in", type: ev.type, url, payload, ts: 0 });
+    });
+    return { feed, events: () => events };
+}
+async function readEventStream(body: ReadableStream<Uint8Array> | null, url: string, push: (entry: SseCaptureEntry) => void): Promise<void> {
+    if (!body)
+        return;
+    const stream = sseFeeder(url, push);
+    const decoder = new TextDecoder();
+    try {
+        const reader = body.getReader();
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            stream.feed(decoder.decode(value, { stream: true }));
+        }
+        stream.feed(decoder.decode());
+        push({ kind: "sse", dir: "sys", type: "close", url, payload: { events: stream.events() }, ts: 0 });
+    }
+    catch (err) {
+        push({ kind: "sse", dir: "sys", type: "error", url, payload: { events: stream.events(), error: String((err as Error)?.message ?? err) }, ts: 0 });
+    }
 }
 export interface BeaconCaptureEntry extends CaptureLogEntry {
     kind: "beacon";

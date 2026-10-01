@@ -73,6 +73,10 @@ interface AppState {
         error?: string;
     }>;
     deleteTrigger(id: string): Promise<void>;
+    updateTrigger(id: string, input: CreateTrigger): Promise<{
+        ok: boolean;
+        error?: string;
+    }>;
     savedTriggers: Record<string, StoredTrigger[]>;
     restoreSavedTrigger(saved: StoredTrigger): Promise<{
         ok: boolean;
@@ -163,6 +167,8 @@ export const useStore = create<AppState>()(persist((set, get) => {
                 }
                 return { ...state, entries };
             });
+            if (msg.type === "trigger-changed")
+                void get().refreshTriggers();
             if (msg.type === "prexy-connected") {
                 const { dbgModuleAutoLoad, dbgModuleCode, sendEval: send } = get();
                 if (dbgModuleAutoLoad && dbgModuleCode.trim())
@@ -353,6 +359,35 @@ export const useStore = create<AppState>()(persist((set, get) => {
                 }));
             }
             await get().refreshTriggers();
+        },
+        async updateTrigger(id, input) {
+            const token = get().activeToken;
+            if (!token)
+                return { ok: false, error: "no active session" };
+            const before = get().triggers.find((t) => t.id === id);
+            try {
+                const res = await fetch(`${trimBase(get().serverUrl)}/api/sessions/${token}/triggers/${id}`, {
+                    method: "PATCH",
+                    headers: { Authorization: `Bearer ${get().adminKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ ...input, filter: input.filter ?? "", rateLimitMs: input.rateLimitMs ?? null }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok)
+                    return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+                if (before) {
+                    set((state) => ({
+                        savedTriggers: {
+                            ...state.savedTriggers,
+                            [token]: (state.savedTriggers[token] ?? []).map((t) => triggerContentEquals(t, before) ? { ...input, savedId: t.savedId } : t),
+                        },
+                    }));
+                }
+                await get().refreshTriggers();
+                return { ok: true };
+            }
+            catch (err) {
+                return { ok: false, error: String(err) };
+            }
         },
         savedTriggers: {},
         restoreSavedTrigger(saved) {

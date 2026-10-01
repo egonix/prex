@@ -14,7 +14,8 @@ import { applySchema } from "./store/schema.ts";
 import { recordGap, startIngest } from "./store/ingest.ts";
 import { storeEnabled } from "./store/client.ts";
 import { stateAt } from "./store/activity.ts";
-import { closeEpisodeAt, findOpenEpisodes, persistTrigger, restoreSessionConfig, unpersistTrigger } from "./store/config.ts";
+import { closeEpisodeAt, findOpenEpisodes, loadDeclaredRetention, persistTrigger, restoreSessionConfig, unpersistTrigger } from "./store/config.ts";
+import { restoreRetention } from "./store/retention.ts";
 const ADMIN_KEY = Deno.env.get("PREX_ADMIN_KEY");
 if (!ADMIN_KEY) {
     console.warn("[prex] PREX_ADMIN_KEY is not set \u2014 /api and /ws/view are reachable by anyone who can reach this server");
@@ -143,6 +144,9 @@ async function initStore(): Promise<void> {
         return;
     }
     await applySchema();
+    const restored = await restoreRetention(await loadDeclaredRetention());
+    if (restored > 0)
+        console.log(`[prex] restored retention for ${restored} game(s)`);
     setSessionRestorer(restoreSessionConfig);
     const orphaned = await findOpenEpisodes();
     for (const ep of orphaned) {
