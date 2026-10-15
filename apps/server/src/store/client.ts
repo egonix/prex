@@ -1,7 +1,7 @@
-const URL_BASE = Deno.env.get("PREX_CLICKHOUSE_URL") ?? "";
-const DB = Deno.env.get("PREX_CLICKHOUSE_DB") ?? "prex";
-const USER = Deno.env.get("PREX_CLICKHOUSE_USER") ?? "default";
-const PASSWORD = Deno.env.get("PREX_CLICKHOUSE_PASSWORD") ?? "";
+const URL_BASE = process.env.PREX_CLICKHOUSE_URL ?? "";
+const DB = process.env.PREX_CLICKHOUSE_DB ?? "prex";
+const USER = process.env.PREX_CLICKHOUSE_USER ?? "default";
+const PASSWORD = process.env.PREX_CLICKHOUSE_PASSWORD ?? "";
 export const SESSION_NOT_FOUND = "session_not_found";
 export const STORE_UNAVAILABLE = "store_unavailable";
 export class StoreUnavailable extends Error {
@@ -10,6 +10,31 @@ export class StoreUnavailable extends Error {
         super(`activity store unavailable: ${cause instanceof Error ? cause.message : String(cause)}`);
         this.name = "StoreUnavailable";
     }
+}
+export const QUERY_FAILED = "query_failed";
+export class QueryRejected extends Error {
+    readonly code = QUERY_FAILED;
+    readonly reason: string;
+    constructor(reason: string, message: string) {
+        super(message);
+        this.name = "QueryRejected";
+        this.reason = reason;
+    }
+}
+function rejection(text: string): QueryRejected | null {
+    let body = text.trim();
+    try {
+        const parsed = JSON.parse(body);
+        if (parsed && typeof parsed.exception === "string")
+            body = parsed.exception.trim();
+    }
+    catch {
+    }
+    const m = /Code: (\d+)\. DB::Exception: ([\s\S]*?)(?: \(([A-Z][A-Z0-9_]*)\))?(?: \(version [\s\S]*)?$/.exec(body);
+    if (!m)
+        return null;
+    const message = m[2].replace(/\s*In query [\s\S]*$/, "").trim();
+    return new QueryRejected(m[3] ?? `CODE_${m[1]}`, message);
 }
 let reachable = false;
 export function storeReachable(): boolean {
@@ -39,8 +64,9 @@ async function send(body: string, params: Record<string, string> = {}): Promise<
     }
     const text = await res.text();
     if (!res.ok) {
-        reachable = res.status < 500;
-        throw new StoreUnavailable(`HTTP ${res.status}: ${text.slice(0, 500)}`);
+        const rejected = rejection(text);
+        reachable = rejected !== null || res.status < 500;
+        throw rejected ?? new StoreUnavailable(`HTTP ${res.status}: ${text.slice(0, 500)}`);
     }
     reachable = true;
     return text;
@@ -68,3 +94,4 @@ export function sqlString(value: string): string {
 export function database(): string {
     return DB;
 }
+export const __testing = { rejection };

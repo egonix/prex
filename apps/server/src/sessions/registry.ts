@@ -11,9 +11,14 @@ export interface PendingCommand {
     }) => void;
     timer: ReturnType<typeof setTimeout>;
 }
+export interface PeerSocket {
+    readonly readyState: number;
+    send(data: string): void;
+    close(code?: number, reason?: string): void;
+}
 export interface Viewer {
     id: string;
-    socket: WebSocket;
+    socket: PeerSocket;
 }
 export interface Session {
     token: string;
@@ -21,8 +26,8 @@ export interface Session {
     sessionIdReady: Promise<string>;
     episodeId: number;
     game: string;
-    prexy: WebSocket | null;
-    viewers: Map<string, WebSocket>;
+    prexy: PeerSocket | null;
+    viewers: Map<string, PeerSocket>;
     meta: {
         url?: string;
         origin?: string;

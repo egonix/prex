@@ -1,4 +1,4 @@
-import type { McpServer } from "npm:@modelcontextprotocol/sdk@^1.30.0/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerDiscoveryTools } from "./discovery.ts";
 import { registerObservationTools } from "./observation.ts";
 import { registerExecutionTools } from "./execution.ts";

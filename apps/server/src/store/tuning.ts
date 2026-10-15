@@ -2,7 +2,7 @@ export function envInt(name: string, fallback: number, range: {
     min: number;
     max: number;
 }): number {
-    const raw = Deno.env.get(name);
+    const raw = process.env[name];
     if (raw === undefined || raw.trim() === "")
         return fallback;
     const parsed = Number(raw);

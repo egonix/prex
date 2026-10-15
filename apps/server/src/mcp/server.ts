@@ -1,5 +1,5 @@
-import { McpServer } from "npm:@modelcontextprotocol/sdk@^1.30.0/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "npm:@modelcontextprotocol/sdk@^1.30.0/server/webStandardStreamableHttp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { registerAllTools } from "./tools/register.ts";
 export async function handleMcpRequest(req: Request): Promise<Response> {
     const server = new McpServer({ name: "prex-mcp", version: "0.1.0" });

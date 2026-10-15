@@ -1,4 +1,7 @@
 .git/
+# The image installs its own (npm ci). A host copy would overwrite it with
+# whatever this machine happens to have, platform builds included.
+**/node_modules/
 .env
 .env.*
 *.log

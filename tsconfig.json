@@ -1,0 +1,21 @@
+{
+  // Everything Node runs: the server, the protocol package, prexy's build
+  // scripts and scripts/cli.ts. Node strips the types itself, which is why
+  // erasableSyntaxOnly and verbatimModuleSyntax are on: an import of a name
+  // that exists only as a type must say `type`, or Node keeps it and the
+  // module fails to load. prexy's browser code has its own prexy/tsconfig.json.
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+
+    "module": "nodenext",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true
+  },
+  "include": ["apps/server/src", "packages/protocol", "prexy/build.ts", "prexy/make-bookmarklet.ts", "scripts/*.ts"]
+}

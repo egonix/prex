@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 const CONTENT_TYPES: Record<string, string> = {
     ".js": "application/javascript; charset=utf-8",
     ".map": "application/json; charset=utf-8",
@@ -16,7 +17,7 @@ async function serveStaticDir(req: Request, prefix: string, root: URL): Promise<
     }
     const ext = rel.slice(rel.lastIndexOf("."));
     try {
-        const body = await Deno.readFile(fileUrl);
+        const body = await readFile(fileUrl);
         return new Response(body, {
             headers: {
                 "content-type": CONTENT_TYPES[ext] ?? "application/octet-stream",

@@ -1,3 +1,4 @@
+import type { WSEvents } from "hono/ws";
 import { GAME_SCHEMA_EVENT, PrexyToServerSchema } from "@prex/protocol";
 import { getOrCreateSession, pruneIfEmpty, sessionIdOf, toMeta } from "../sessions/registry.ts";
 import { broadcastToViewers } from "../sessions/broadcast.ts";
@@ -10,12 +11,10 @@ import { retentionOf, setGameRetention } from "../store/retention.ts";
 import { record } from "../triggers/timing.ts";
 import { enqueue } from "../store/ingest.ts";
 import { closeEpisode, openEpisode, upsertSessionRecord } from "../store/config.ts";
-export function attachPrexySocket(req: Request, token: string): Response {
-    if (!token)
-        return new Response("missing token", { status: 400 });
-    const { socket, response } = Deno.upgradeWebSocket(req);
+export function prexySocketEvents(token: string): WSEvents {
     const session = getOrCreateSession(token);
-    socket.onopen = () => {
+    const events: WSEvents = {};
+    events.onOpen = (_event, socket) => {
         if (session.prexy && session.prexy !== socket && session.prexy.readyState === WebSocket.OPEN) {
             session.prexy.close(4000, "replaced by new prexy connection");
         }
@@ -24,11 +23,12 @@ export function attachPrexySocket(req: Request, token: string): Response {
             console.warn(`[prex] session ${token}: could not open episode: ${err}`);
         });
     };
-    socket.onmessage = (event) => {
+    events.onMessage = (event) => {
         const receivedAt = performance.now();
+        const frame = typeof event.data === "string" ? event.data : String(event.data);
         let parsed;
         try {
-            parsed = PrexyToServerSchema.parse(JSON.parse(event.data));
+            parsed = PrexyToServerSchema.parse(JSON.parse(frame));
         }
         catch (err) {
             console.warn(`[prex] session ${token}: invalid message from prexy`, err);
@@ -87,10 +87,10 @@ export function attachPrexySocket(req: Request, token: string): Response {
         dispatchTriggers(session, parsed);
         const done = performance.now();
         record("dispatch_ms", done - dispatchStart);
-        enqueue(session, parsed, typeof event.data === "string" ? event.data : String(event.data));
+        enqueue(session, parsed, frame);
         record("handler_ms", performance.now() - receivedAt);
     };
-    socket.onclose = () => {
+    events.onClose = (_event, socket) => {
         if (session.prexy === socket) {
             session.prexy = null;
             session.capabilities.clear();
@@ -103,8 +103,10 @@ export function attachPrexySocket(req: Request, token: string): Response {
             pruneIfEmpty(session);
         }
     };
-    socket.onerror = (event) => {
-        console.warn(`[prex] session ${token}: prexy socket error`, event);
+    events.onError = (event) => {
+        console.warn(`[prex] session ${token}: prexy socket error:`, (event as {
+            error?: unknown;
+        }).error ?? event);
     };
-    return response;
+    return events;
 }

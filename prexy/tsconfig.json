@@ -1,0 +1,19 @@
+{
+  // prexy's browser code: the agent, the bookmarklet, game modules and loadable
+  // modules, all bundled by esbuild (build.ts). The build scripts beside them
+  // run in Node and are checked by the root tsconfig.json.
+  "compilerOptions": {
+    "target": "es2020",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  "include": ["core.ts", "bookmarklet.ts", "games", "modules"]
+}

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-net --allow-env
+#!/usr/bin/env node
 interface SessionMeta {
     token: string;
     game: string;
@@ -17,7 +17,7 @@ function trimBase(url: string): string {
 }
 function parseArgs(argv: string[]): Args {
     const out: Args = {
-        server: Deno.env.get("PREX_SERVER") ?? "http://localhost:8000",
+        server: process.env.PREX_SERVER ?? "http://localhost:8000",
         json: false,
         list: false,
         repl: false,
@@ -42,12 +42,16 @@ function parseArgs(argv: string[]): Args {
 }
 async function listSessions(server: string, adminKey: string): Promise<void> {
     const res = await fetch(`${trimBase(server)}/api/sessions`, { headers: { Authorization: `Bearer ${adminKey}` } });
-    const data = await res.json();
+    const data = await res.json() as {
+        ok?: boolean;
+        error?: string;
+        sessions?: SessionMeta[];
+    };
     if (!res.ok || !data.ok) {
         console.error(`failed to list sessions: ${data.error ?? res.status}`);
-        Deno.exit(1);
+        process.exit(1);
     }
-    const sessions = data.sessions as SessionMeta[];
+    const sessions = data.sessions ?? [];
     if (sessions.length === 0) {
         console.log("no active sessions");
         return;
@@ -109,27 +113,18 @@ function tail(server: string, adminKey: string, token: string, json: boolean): P
 }
 const PROMPT = "> ";
 async function* readStdinLines(): AsyncGenerator<string> {
-    const reader = Deno.stdin.readable.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    try {
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done)
-                break;
-            buffer += decoder.decode(value, { stream: true });
-            let idx: number;
-            while ((idx = buffer.indexOf("\n")) >= 0) {
-                yield buffer.slice(0, idx).replace(/\r$/, "");
-                buffer = buffer.slice(idx + 1);
-            }
+    for await (const chunk of process.stdin) {
+        buffer += decoder.decode(chunk as Uint8Array, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf("\n")) >= 0) {
+            yield buffer.slice(0, idx).replace(/\r$/, "");
+            buffer = buffer.slice(idx + 1);
         }
-        if (buffer)
-            yield buffer;
     }
-    finally {
-        reader.releaseLock();
-    }
+    if (buffer)
+        yield buffer;
 }
 function formatValue(value: unknown): string {
     if (typeof value === "string")
@@ -154,12 +149,12 @@ function runRepl(server: string, adminKey: string, token: string): Promise<void>
                 if (line.trim())
                     ws.send(JSON.stringify({ type: "eval", code: line }));
                 else
-                    Deno.stdout.writeSync(new TextEncoder().encode(PROMPT));
+                    process.stdout.write(PROMPT);
             }
         }
         ws.onopen = () => {
             console.error(`[connected: token ${token}: type JS, Enter to run, Ctrl+D to quit]`);
-            Deno.stdout.writeSync(new TextEncoder().encode(PROMPT));
+            process.stdout.write(PROMPT);
             pumpStdin();
         };
         ws.onerror = () => console.error("[ws error]");
@@ -186,23 +181,23 @@ function runRepl(server: string, adminKey: string, token: string): Promise<void>
             }
             if (msg.type === "result") {
                 console.log(msg.ok ? formatValue(msg.value) : `error: ${msg.error}`);
-                Deno.stdout.writeSync(new TextEncoder().encode(PROMPT));
+                process.stdout.write(PROMPT);
             }
         };
     });
 }
-const args = parseArgs(Deno.args);
-const adminKey = Deno.env.get("PREX_ADMIN_KEY");
+const args = parseArgs(process.argv.slice(2));
+const adminKey = process.env.PREX_ADMIN_KEY;
 if (!adminKey) {
     console.error("set PREX_ADMIN_KEY first");
-    Deno.exit(1);
+    process.exit(1);
 }
 if (args.list) {
     await listSessions(args.server, adminKey);
 }
 else if (!args.token) {
     console.error("usage: cli.ts <token> [--json | --repl] [--server <url>] | cli.ts --list");
-    Deno.exit(1);
+    process.exit(1);
 }
 else if (args.repl) {
     await runRepl(args.server, adminKey, args.token);

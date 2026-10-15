@@ -18,3 +18,5 @@ apps/server/static/
 /compose.override.yaml
 # release cdn tarballs (scripts/make-dist.sh)
 /dist/
+
+node_modules/

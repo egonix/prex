@@ -1,0 +1,15 @@
+{
+  "name": "@prex/prexy",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "prexy: the in-page agent prex injects like capture hooks, eval and module loading.",
+  "scripts": {
+    "build": "node build.ts",
+    "bookmarklet": "node make-bookmarklet.ts",
+    "bookmarklet:raw": "node make-bookmarklet.ts --raw"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

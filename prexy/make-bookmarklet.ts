@@ -1,12 +1,13 @@
 import * as esbuild from "esbuild";
+const ARGS = process.argv.slice(2);
 function arg(name: string, def?: string): string | undefined {
-    const idx = Deno.args.indexOf(`--${name}`);
-    if (idx !== -1 && Deno.args[idx + 1] !== undefined)
-        return Deno.args[idx + 1];
+    const idx = ARGS.indexOf(`--${name}`);
+    if (idx !== -1 && ARGS[idx + 1] !== undefined)
+        return ARGS[idx + 1];
     return def;
 }
 function flag(name: string): boolean {
-    return Deno.args.includes(`--${name}`);
+    return ARGS.includes(`--${name}`);
 }
 const server = arg("server", "http://localhost:8000")!;
 const game = arg("game", "default")!;

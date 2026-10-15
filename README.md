@@ -33,17 +33,19 @@ flowchart LR
 
 ## Quickstart
 
-Build the prexy bundle and start the server:
+Node 26 runs the TypeScript sources directly; there is no compile step. Install,
+build the prexy bundle and start the server:
 
 ```bash
-cd prexy && deno task build
-cd ../apps/server && PREX_ADMIN_KEY=<pick-a-key> deno task dev
+npm install
+npm run build:prexy
+PREX_ADMIN_KEY=<pick-a-key> npm run dev
 ```
 
 Generate a bookmarklet for a session:
 
 ```bash
-cd prexy && deno task bookmarklet -- --server http://localhost:8000
+cd prexy && npm run bookmarklet -- --server http://localhost:8000
 ```
 
 Save the printed `javascript:...` URL as a browser bookmark, click it on
@@ -124,7 +126,7 @@ served live from disk.
 
 2. **Start prex** `docker compose up -d`
 
-3. **Create a token** `deno task bookmarklet -- --server http://localhost:8000`
+3. **Create a token** `cd prexy && npm run bookmarklet -- --server http://localhost:8000`
 
 ### Target Page
 
@@ -140,10 +142,12 @@ served live from disk.
 
 | Command | Task |
 |---|---|
-| `cd prexy && deno task build` | Bundle core.ts + games/*.ts into apps/server/static/prexy |
-| `cd prexy && deno task bookmarklet -- --server <url> --game <id> [--token <token>]` | Print a minified, ready-to-paste bookmarklet |
-| `cd prexy && deno task bookmarklet:raw -- ...` | Same, unminified, for embedding in a browser extension |
-| `cd apps/server && deno task dev` | Run the server with file-watching |
+| `npm install` | Install the workspace (server, protocol, prexy) |
+| `npm run build:prexy` | Bundle core.ts + games/*.ts into apps/server/static/prexy |
+| `cd prexy && npm run bookmarklet -- --server <url> --game <id> [--token <token>]` | Print a minified, ready-to-paste bookmarklet |
+| `cd prexy && npm run bookmarklet:raw -- ...` | Same, unminified, for embedding in a browser extension |
+| `npm run dev` | Run the server with file-watching |
+| `npm run check` | Type-check the server, scripts and prexy |
 | `cd apps/ui && npm run dev` | Run the debug UI (Vite) |
 | `cd apps/ui && npm run build` | Production build of the debug UI |
 
@@ -154,7 +158,7 @@ served live from disk.
 `--game <name>` makes the agent load `/prexy/games/<name>.js`. The server looks in two places,
 in order:
 
-1. **Built into the image**: `prexy/games/*.ts`, bundled by `deno task build`. prex ships the
+1. **Built into the image**: `prexy/games/*.ts`, bundled by `npm run build:prexy`. prex ships the
    generic ones here (`default`, `minimal`).
 2. **Mounted**: `static/games/<name>.js`, served live from disk. A module written for one
    particular site belongs here, built from wherever its source lives, so it needs no rebuild
@@ -180,10 +184,10 @@ every later occurrence renders that way (never stored).
 
 ```bash
 export PREX_ADMIN_KEY=...
-deno run --allow-net --allow-env scripts/cli.ts --list          # sessions
-deno run --allow-net --allow-env scripts/cli.ts <token>         # tail the log
-deno run --allow-net --allow-env scripts/cli.ts <token> --json  # NDJSON, for piping
-deno run --allow-net --allow-env scripts/cli.ts <token> --repl  # interactive
+node scripts/cli.ts --list          # sessions
+node scripts/cli.ts <token>         # tail the log
+node scripts/cli.ts <token> --json  # NDJSON, for piping
+node scripts/cli.ts <token> --repl  # interactive
 ```
 
 `--repl` is the **same shared REPL** the browser UI has: what you type appears in
@@ -193,8 +197,7 @@ panel, run a second plain `cli.ts <token>` in another pane for the log tail.
 Wrap with `rlwrap` for history and line editing. (works over SSH):
 
 ```bash
-docker compose exec -it prex rlwrap \
-  deno run --allow-net --allow-env scripts/cli.ts <token> --repl
+docker compose exec -it prex rlwrap node scripts/cli.ts <token> --repl
 ```
 
 ### (Optional) Manual Client prexy
@@ -294,4 +297,4 @@ like a real behavioural change if you do not check.
 - **Will you create a bot/AI to play "browser-game" for me?**
   - No.
 
-*mirror prex-beta-24-g7ffd6d9 `8862afc92441991dabaac32e9b784a6a59b94d09d10396ab529a56a47c6f40b2`*
+*mirror prex-beta-28-g4288d0c `66061e02c0378f507af7dd38f31dc8a48128ce0692d2d0848fa03fb15bd1c8fc`*

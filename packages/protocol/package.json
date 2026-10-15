@@ -1,10 +1,12 @@
 {
   "name": "@prex/protocol",
   "version": "0.1.0",
+  "private": true,
+  "type": "module",
   "license": "Apache-2.0",
   "description": "Shared wire-protocol types for the prex server, the prexy agent and viewers.",
   "exports": "./mod.ts",
-  "imports": {
-    "zod": "npm:zod@^3.23.8"
+  "dependencies": {
+    "zod": "3.25.76"
   }
 }

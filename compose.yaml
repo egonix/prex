@@ -1,6 +1,9 @@
 services:
   prex:
     build: .
+    # tini as PID 1: node would otherwise ignore the
+    # SIGTERM `docker stop` sends and be killed only after the timeout.
+    init: true
     environment:
       - PORT=8000
       - PREX_ADMIN_KEY=${PREX_ADMIN_KEY:?set PREX_ADMIN_KEY in .env}

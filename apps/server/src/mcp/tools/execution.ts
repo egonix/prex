@@ -1,4 +1,4 @@
-import type { McpServer } from "npm:@modelcontextprotocol/sdk@^1.30.0/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { sendCommand } from "../../rpc/command.ts";
 import { broadcastToViewers } from "../../sessions/broadcast.ts";

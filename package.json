@@ -1,0 +1,24 @@
+{
+  "name": "prex",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Reverse tunnel into a live browser tab: evaluate JS, capture traffic.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "workspaces": [
+    "packages/protocol",
+    "apps/server",
+    "prexy"
+  ],
+  "scripts": {
+    "check": "tsc -p tsconfig.json && tsc -p prexy/tsconfig.json",
+    "dev": "npm run dev --workspace @prex/server",
+    "build:prexy": "npm run build --workspace @prex/prexy"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3"
+  }
+}

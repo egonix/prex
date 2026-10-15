@@ -1,9 +1,10 @@
-import type { McpServer } from "npm:@modelcontextprotocol/sdk@^1.30.0/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { describeSessionId, resolveSessionId } from "../session-id.ts";
 import { aggregateActivity, aggregateByField, fieldHistory, queryActivity, queryFindings, stateAt } from "../../store/activity.ts";
 import { AdHocRejected, runReadOnlySql } from "../../store/adhoc.ts";
 import { queryGaps } from "../../store/config.ts";
+import { QueryRejected } from "../../store/client.ts";
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const TRUNCATE_CHARS = 10000;
@@ -67,6 +68,11 @@ function json(value: unknown) {
 function notFound(text: string) {
     return { isError: true, content: [{ type: "text" as const, text }] };
 }
+function storeFailure(err: unknown) {
+    if (err instanceof QueryRejected)
+        return notFound(`query_failed: ${err.reason}: ${err.message}`);
+    return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+}
 export function registerObservationTools(server: McpServer): void {
     server.registerTool("query_activity", {
         description: "Queries a session's captured activity (console output and/or network/socket traffic) in " +
@@ -102,7 +108,7 @@ export function registerObservationTools(server: McpServer): void {
             });
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("get_state_at", {
@@ -136,7 +142,7 @@ export function registerObservationTools(server: McpServer): void {
             return json(state);
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("aggregate_activity", {
@@ -171,7 +177,7 @@ export function registerObservationTools(server: McpServer): void {
             return json(await aggregateActivity({ sessionId: args.session_id, ...args }));
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("query_gaps", {
@@ -192,7 +198,7 @@ export function registerObservationTools(server: McpServer): void {
             return json(await queryGaps(session_id, since, until));
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("field_history", {
@@ -239,7 +245,7 @@ export function registerObservationTools(server: McpServer): void {
             }));
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("aggregate_by_field", {
@@ -281,7 +287,7 @@ export function registerObservationTools(server: McpServer): void {
             return json(await aggregateByField({ sessionId: a.session_id, ...a }));
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("get_activity_detail", {
@@ -320,6 +326,13 @@ export function registerObservationTools(server: McpServer): void {
             "Both tables are filtered to this session by the server, so a bare `FROM activity` is " +
             "already scoped. Always bound `ts`: an unbounded scan of `payload` is the one thing that " +
             "reliably exhausts the memory budget. SELECT only; no FORMAT clause; single statement. " +
+            "This is ClickHouse, which differs from standard SQL where queries have failed before: a " +
+            "scalar subquery `(SELECT \u2026)` is Nullable, so wrap it in assumeNotNull() before a function " +
+            "that cannot return Nullable (JSONExtractKeys, arrayJoin); the condition of an -If " +
+            "aggregate (countIf, sumIf) must be a comparison such as `x > 0`, not a number; and an " +
+            "aggregate without GROUP BY cannot ORDER BY a plain column. A refused query returns " +
+            "`query_failed: <ClickHouse error name>: <message>` (fix the SQL); `store_unavailable` " +
+            "means the store did not answer at all. " +
             "Prefer the typed tools when they fit \u2014 they are cheaper and their output is smaller. " +
             "Read-only.",
         inputSchema: {
@@ -342,7 +355,7 @@ export function registerObservationTools(server: McpServer): void {
         catch (err) {
             if (err instanceof AdHocRejected)
                 return notFound(`rejected: ${err.message}`);
-            return notFound(`query_failed: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
     server.registerTool("list_findings", {
@@ -375,7 +388,7 @@ export function registerObservationTools(server: McpServer): void {
             return json(await queryFindings({ sessionId: a.session_id, ...a }));
         }
         catch (err) {
-            return notFound(`store_unavailable: ${err instanceof Error ? err.message : String(err)}`);
+            return storeFailure(err);
         }
     });
 }

@@ -1,8 +1,10 @@
 import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { createNodeWebSocket } from "@hono/node-ws";
 import { CreateTriggerSchema, type Trigger } from "@prex/protocol";
 import { getOrCreateSession, getSession, listSessions, pruneIfEmpty, sessionIdOf, setSessionRestorer } from "./sessions/registry.ts";
-import { attachPrexySocket } from "./websocket/prexy.ts";
-import { attachViewerSocket } from "./websocket/view.ts";
+import { prexySocketEvents } from "./websocket/prexy.ts";
+import { viewerSocketEvents } from "./websocket/view.ts";
 import { sendCommand } from "./rpc/command.ts";
 import { broadcastToViewers } from "./sessions/broadcast.ts";
 import { serveStaticMounted, serveStaticPrexy } from "./http/static.ts";
@@ -16,7 +18,7 @@ import { storeEnabled } from "./store/client.ts";
 import { stateAt } from "./store/activity.ts";
 import { closeEpisodeAt, findOpenEpisodes, loadDeclaredRetention, persistTrigger, restoreSessionConfig, unpersistTrigger } from "./store/config.ts";
 import { restoreRetention } from "./store/retention.ts";
-const ADMIN_KEY = Deno.env.get("PREX_ADMIN_KEY");
+const ADMIN_KEY = process.env.PREX_ADMIN_KEY;
 if (!ADMIN_KEY) {
     console.warn("[prex] PREX_ADMIN_KEY is not set \u2014 /api and /ws/view are reachable by anyone who can reach this server");
 }
@@ -38,6 +40,9 @@ function withCors(res: Response): Response {
     return res;
 }
 const app = new Hono();
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+app.get("/ws/prexy/:token", upgradeWebSocket((c) => prexySocketEvents(c.req.param("token")!)));
+app.get("/ws/view/:token", async (c, next) => (isAuthorized(c.req.query("key") ?? null) ? await next() : unauthorized()), upgradeWebSocket((c) => viewerSocketEvents(c.req.param("token")!)));
 app.get("/api/sessions", (c) => c.json({ ok: true, sessions: listSessions() }));
 app.post("/api/sessions/:token/command", async (c) => {
     const token = c.req.param("token");
@@ -135,7 +140,7 @@ app.post("/api/metrics/reset", (c) => {
     resetTimings();
     return c.json({ ok: true });
 });
-if (Deno.env.get("PREX_MCP") === "true") {
+if (process.env.PREX_MCP === "true") {
     app.all("/api/mcp", (c) => handleMcpRequest(c.req.raw));
 }
 async function initStore(): Promise<void> {
@@ -186,18 +191,8 @@ async function initStoreWithRetry(): Promise<void> {
 }
 void initStoreWithRetry();
 startIngest();
-Deno.serve({ port: Number(Deno.env.get("PORT") ?? 8000) }, (req) => {
+function dispatch(req: Request): Response | Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname.startsWith("/ws/prexy/")) {
-        const token = url.pathname.slice("/ws/prexy/".length);
-        return attachPrexySocket(req, token);
-    }
-    if (url.pathname.startsWith("/ws/view/")) {
-        if (!isAuthorized(url.searchParams.get("key")))
-            return unauthorized();
-        const token = url.pathname.slice("/ws/view/".length);
-        return attachViewerSocket(req, token);
-    }
     if (url.pathname.startsWith("/prexy/")) {
         return serveStaticPrexy(req).then((res) => withCors(res ?? new Response("not found", { status: 404 })));
     }
@@ -214,4 +209,9 @@ Deno.serve({ port: Number(Deno.env.get("PORT") ?? 8000) }, (req) => {
         return Promise.resolve(app.fetch(req)).then(withCors);
     }
     return app.fetch(req);
+}
+const port = Number(process.env.PORT ?? 8000);
+const server = serve({ fetch: dispatch, port }, (info) => {
+    console.log(`Listening on http://0.0.0.0:${info.port}/ (http://localhost:${info.port}/)`);
 });
+injectWebSocket(server);
